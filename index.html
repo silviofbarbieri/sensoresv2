@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Sensores + Firebase</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: rgba(255, 255, 255, 0.95);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      border-radius: 16px;
+      overflow: hidden;
+      backdrop-filter: blur(10px);
+    }
+    
+    .header {
+      background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+      color: white;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    .header h1 {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+    
+    .header p {
+      opacity: 0.9;
+      font-size: 14px;
+    }
+    
+    .controls {
+      background: rgba(255, 255, 255, 0.9);
+      padding: 20px;
+      border-bottom: 2px solid #e0e6ed;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+    
+    .btn-primary {
+      background: linear-gradient(45deg, #4facfe, #00f2fe);
+      color: white;
+    }
+    
+    .btn-success {
+      background: linear-gradient(45deg, #56ab2f, #a8e6cf);
+      color: white;
+    }
+    
+    .btn-warning {
+      background: linear-gradient(45deg, #f093fb, #f5576c);
+      color: white;
+    }
+    
+    .btn-secondary {
+      background: linear-gradient(45deg, #667eea, #764ba2);
+      color: white;
+    }
+    
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    #map { 
+      height: 50vh;
+      border-bottom: 2px solid #e0e6ed;
+    }
+    
+    .info-panels {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 20px;
+      padding: 25px;
+      background: rgba(255, 255, 255, 0.9);
+    }
+    
+    .sensors-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 15px;
+    }
+    
+    .sensor-card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      transition: all 0.3s ease;
+      border-left: 4px solid #4facfe;
+    }
+    
+    .sensor-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    }
+    
+    .sensor-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .sensor-icon {
+      font-size: 20px;
+      margin-right: 10px;
+    }
+    
+    .sensor-title {
+      font-weight: 600;
+      color: #2d3748;
+      font-size: 14px;
+      flex: 1;
+    }
+    
+    .sensor-value {
+      font-size: 16px;
+      font-weight: 500;
+      color: #4a5568;
+      margin-top: 5px;
+    }
+    
+    .compass-arrow {
+      display: inline-block;
+      transform-origin: center;
+      font-size: 24px;
+      transition: transform 0.3s ease;
+      margin-left: 10px;
+    }
+    
+    .status-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    
+    .status-active { background: #48bb78; }
+    .status-error { background: #f56565; }
+    .status-waiting { background: #ed8936; }
+    
+    .motion-bars {
+      display: flex;
+      gap: 5px;
+      align-items: end;
+      height: 30px;
+      margin-top: 10px;
+    }
+    
+    .motion-bar {
+      flex: 1;
+      background: #e2e8f0;
+      border-radius: 4px;
+      position: relative;
+    }
+    
+    .motion-bar-fill {
+      background: linear-gradient(to top, #4facfe, #00f2fe);
+      border-radius: 4px;
+      transition: height 0.3s ease;
+      width: 100%;
+      position: absolute;
+      bottom: 0;
+    }
+    
+    .motion-label {
+      text-align: center;
+      font-size: 10px;
+      color: #4a5568;
+      margin-top: 5px;
+      font-weight: 600;
+    }
+    
+    .marks-panel {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .marks-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    
+    .marks-title {
+      font-weight: 600;
+      color: #2d3748;
+      font-size: 16px;
+    }
+    
+    .mark-item {
+      background: #f7fafc;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+      border-left: 4px solid #4facfe;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .mark-item:hover {
+      background: #edf2f7;
+      transform: translateX(5px);
+    }
+    
+    .mark-desc {
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 5px;
+    }
+    
+    .mark-coords {
+      font-size: 12px;
+      color: #718096;
+    }
+    
+    .mark-date {
+      font-size: 11px;
+      color: #a0aec0;
+      margin-top: 3px;
+    }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 10000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(5px);
+    }
+    
+    .modal-content {
+      background: white;
+      margin: 10% auto;
+      padding: 30px;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    
+    .modal-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #2d3748;
+    }
+    
+    .close {
+      color: #a0aec0;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: color 0.3s;
+    }
+    
+    .close:hover {
+      color: #2d3748;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #2d3748;
+    }
+    
+    .form-input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 16px;
+      transition: border-color 0.3s;
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: #4facfe;
+    }
+    
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    
+    .loading {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 1s ease-in-out infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    @media (max-width: 768px) {
+      .container {
+        border-radius: 0;
+        min-height: 100vh;
+      }
+      
+      #map {
+        height: 40vh;
+      }
+      
+      .info-panels {
+        grid-template-columns: 1fr;
+        padding: 20px 15px;
+      }
+      
+      .controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .controls .btn {
+        justify-content: center;
+      }
+      
+      .modal-content {
+        margin: 5% auto;
+        width: 95%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🛰️ Dashboard de Sensores + Firebase</h1>
+      <p>Monitoramento em tempo real com persistência de marcadores</p>
+    </div>
+    
+    <div class="controls">
+      <button class="btn btn-primary" onclick="startGPS()">
+        📍 <span id="gps-text">Iniciar GPS</span>
+      </button>
+      <button class="btn btn-secondary" onclick="toggleCompass()">
+        🧭 <span id="compass-text">Ativar Bússola</span>
+      </button>
+      <button class="btn btn-warning" onclick="toggleMotion()">
+        📐 <span id="motion-text">Ativar Movimento</span>
+      </button>
+      <button class="btn btn-success" onclick="openMarkModal()" id="add-mark-btn" disabled>
+        📌 Salvar Ponto
+      </button>
+    </div>
+    
+    <div id="map"></div>
+    
+    <div class="info-panels">
+      <div class="sensors-grid">
+        <div class="sensor-card">
+          <div class="sensor-header">
+            <span class="sensor-icon">📍</span>
+            <span class="sensor-title">Localização GPS</span>
+            <span class="status-indicator status-waiting" id="location-status"></span>
+          </div>
+          <div class="sensor-value" id="location">Clique em "Iniciar GPS"</div>
+          <div style="font-size: 12px; color: #718096; margin-top: 5px;">
+            Precisão: <span id="accuracy">--</span>
+          </div>
+        </div>
+        
+        <div class="sensor-card">
+          <div class="sensor-header">
+            <span class="sensor-icon">🧭</span>
+            <span class="sensor-title">Bússola Digital</span>
+            <span class="status-indicator status-waiting" id="compass-status"></span>
+          </div>
+          <div class="sensor-value">
+            <span id="compass">--°</span>
+            <span class="compass-arrow" id="arrow">⬆️</span>
+          </div>
+          <div style="font-size: 12px; color: #718096; margin-top: 5px;">
+            <span id="direction">--</span>
+          </div>
+        </div>
+        
+        <div class="sensor-card">
+          <div class="sensor-header">
+            <span class="sensor-icon">📐</span>
+            <span class="sensor-title">Acelerômetro</span>
+            <span class="status-indicator status-waiting" id="motion-status"></span>
+          </div>
+          <div class="sensor-value" id="motion">X: --, Y: --, Z: --</div>
+          <div class="motion-bars">
+            <div class="motion-bar">
+              <div class="motion-bar-fill" id="x-bar"></div>
+            </div>
+            <div class="motion-bar">
+              <div class="motion-bar-fill" id="y-bar"></div>
+            </div>
+            <div class="motion-bar">
+              <div class="motion-bar-fill" id="z-bar"></div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 5px; margin-top: 5px;">
+            <div class="motion-label">X</div>
+            <div class="motion-label">Y</div>
+            <div class="motion-label">Z</div>
+          </div>
+        </div>
+        
+        <div class="sensor-card">
+          <div class="sensor-header">
+            <span class="sensor-icon">💡</span>
+            <span class="sensor-title">Sensor de Luz</span>
+            <span class="status-indicator status-waiting" id="light-status"></span>
+          </div>
+          <div class="sensor-value" id="light">-- lux</div>
+          <div style="font-size: 12px; color: #718096; margin-top: 5px;">
+            <span id="light-level">--</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="marks-panel">
+        <div class="marks-header">
+          <span class="marks-title">📌 Pontos Salvos</span>
+          <span id="marks-count" style="background: #4facfe; color: white; padding: 4px 8px; border-radius: 12px; font-size: 12px;">0</span>
+        </div>
+        <div id="marks-list">
+          <div style="text-align: center; color: #a0aec0; padding: 20px;">
+            Nenhum ponto salvo ainda
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para adicionar marcador -->
+  <div id="mark-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="modal-title">📌 Salvar Novo Ponto</span>
+        <span class="close" onclick="closeMarkModal()">&times;</span>
+      </div>
+      <form id="mark-form">
+        <div class="form-group">
+          <label class="form-label">Descrição do Ponto:</label>
+          <input type="text" id="mark-description" class="form-input" placeholder="Ex: Casa da Maria, Posto de gasolina..." required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Coordenadas:</label>
+          <input type="text" id="mark-coords" class="form-input" readonly>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeMarkModal()">Cancelar</button>
+          <button type="submit" class="btn btn-success" id="save-mark-btn">
+            <span id="save-loading" class="loading" style="display: none;"></span>
+            Salvar Ponto
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  
+  <!-- Firebase v9 SDK -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
+    import { getFirestore, collection, addDoc, getDocs, orderBy, query } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
+
+    // Configuração do Firebase (substitua pela sua configuração)
+    const firebaseConfig = {
+      apiKey: "AIzaSyBYour-API-Key-Here", // Substitua pela sua API Key
+      authDomain: "your-project.firebaseapp.com", // Substitua pelo seu domínio
+      projectId: "your-project-id", // Substitua pelo seu Project ID
+      storageBucket: "your-project-id.appspot.com",
+      messagingSenderId: "123456789",
+      appId: "1:123456789:web:your-app-id"
+    };
+
+    // Inicializar Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Disponibilizar globalmente
+    window.db = db;
+    window.firestore = { collection, addDoc, getDocs, orderBy, query };
+  </script>
+
+  <script>
+    // ==== VARIÁVEIS GLOBAIS ====
+    let map, marker, accuracyCircle;
+    let currentPosition = null;
+    let gpsActive = false;
+    let compassActive = false;
+    let motionActive = false;
+    let watchId = null;
+    
+    // ==== UTILITÁRIOS ====
+    function updateStatus(elementId, status) {
+      const element = document.getElementById(elementId);
+      element.className = `status-indicator status-${status}`;
+    }
+    
+    function getDirectionFromHeading(heading) {
+      const directions = [
+        'Norte', 'Norte-Nordeste', 'Nordeste', 'Este-Nordeste',
+        'Este', 'Este-Sudeste', 'Sudeste', 'Sul-Sudeste',
+        'Sul', 'Sul-Sudoeste', 'Sudoeste', 'Oeste-Sudoeste',
+        'Oeste', 'Oeste-Noroeste', 'Noroeste', 'Norte-Noroeste'
+      ];
+      const index = Math.round(heading / 22.5) % 16;
+      return directions[index];
+    }
+    
+    function getLightLevel(lux) {
+      if (lux < 1) return 'Muito Escuro';
+      if (lux < 10) return 'Escuro';
+      if (lux < 50) return 'Penumbra';
+      if (lux < 200) return 'Interior';
+      if (lux < 500) return 'Escritório';
+      if (lux < 1000) return 'Nublado';
+      if (lux < 10000) return 'Dia Ensolarado';
+      return 'Muito Claro';
+    }
+
+    // ==== INICIALIZAR MAPA ====
+    function initMap() {
+      map = L.map('map').setView([-23.5505, -46.6333], 10);
+      
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+      
+      const userIcon = L.divIcon({
+        html: `<div style="
+          background: #4facfe; 
+          width: 20px; 
+          height: 20px; 
+          border-radius: 50%; 
+          border: 3px solid white; 
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        "></div>`,
+        className: "user-icon",
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+      });
+      
+      marker = L.marker([-23.5505, -46.6333], { icon: userIcon }).addTo(map);
+      accuracyCircle = L.circle([-23.5505, -46.6333], { 
+        radius: 1000, 
+        fillOpacity: 0.1, 
+        color: '#4facfe' 
+      }).addTo(map);
+      
+      loadMarksFromFirebase();
+    }
+
+    // ==== GPS FUNCTIONS ====
+    function startGPS() {
+      if (!gpsActive) {
+        if (navigator.geolocation) {
+          const gpsBtn = document.getElementById('gps-text');
+          gpsBtn.innerHTML = '<span class="loading"></span> Localizando...';
+          
+          watchId = navigator.geolocation.watchPosition(
+            updateLocation, 
+            locationError, 
+            { 
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 60000
+            }
+          );
+          gpsActive = true;
+        } else {
+          alert('Geolocalização não suportada neste dispositivo');
+        }
+      } else {
+        stopGPS();
+      }
+    }
+    
+    function stopGPS() {
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+      gpsActive = false;
+      document.getElementById('gps-text').textContent = 'Iniciar GPS';
+      document.getElementById('add-mark-btn').disabled = true;
+      updateStatus('location-status', 'waiting');
+    }
+    
+    function updateLocation(position) {
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
+      
+      currentPosition = { lat, lon, accuracy };
+      
+      marker.setLatLng([lat, lon]);
+      accuracyCircle.setLatLng([lat, lon]);
+      accuracyCircle.setRadius(accuracy);
+      map.setView([lat, lon], 16);
+      
+      document.getElementById("location").textContent = 
+        `${lat.toFixed(6)}°, ${lon.toFixed(6)}°`;
+      document.getElementById("accuracy").textContent = `±${accuracy.toFixed(0)}m`;
+      document.getElementById('gps-text').textContent = 'Parar GPS';
+      document.getElementById('add-mark-btn').disabled = false;
+      updateStatus('location-status', 'active');
+    }
+    
+    function locationError(err) {
+      document.getElementById("location").textContent = `Erro: ${err.message}`;
+      document.getElementById('gps-text').textContent = 'Iniciar GPS';
+      updateStatus('location-status', 'error');
+      gpsActive = false;
+    }
+
+    // ==== COMPASS FUNCTIONS ====
+    function toggleCompass() {
+      if (!compassActive) {
+        startCompass();
+      } else {
+        stopCompass();
+      }
+    }
+    
+    function startCompass() {
+      if (window.DeviceOrientationEvent) {
+        // Para iOS, solicitar permissão
+        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+          DeviceOrientationEvent.requestPermission()
+            .then(response => {
+              if (response === 'granted') {
+                window.addEventListener("deviceorientation", handleOrientation, true);
+                compassActive = true;
+                document.getElementById('compass-text').textContent = 'Parar Bússola';
+                updateStatus('compass-status', 'active');
+              } else {
+                alert('Permissão para bússola negada');
+                updateStatus('compass-status', 'error');
+              }
+            });
+        } else {
+          window.addEventListener("deviceorientation", handleOrientation, true);
+          compassActive = true;
+          document.getElementById('compass-text').textContent = 'Parar Bússola';
+          updateStatus('compass-status', 'active');
+        }
+      } else {
+        alert('Bússola não suportada neste dispositivo');
+        updateStatus('compass-status', 'error');
+      }
+    }
+    
+    function stopCompass() {
+      window.removeEventListener("deviceorientation", handleOrientation, true);
+      compassActive = false;
+      document.getElementById('compass-text').textContent = 'Ativar Bússola';
+      document.getElementById("compass").textContent = '--°';
+      document.getElementById("direction").textContent = '--';
+      updateStatus('compass-status', 'waiting');
+    }
+    
+    function handleOrientation(event) {
+      if (event.absolute || event.webkitCompassHeading !== undefined) {
+        const heading = event.webkitCompassHeading || (360 - event.alpha);
+        const roundedHeading = Math.round(heading);
+        
+        document.getElementById("compass").textContent = `${roundedHeading}°`;
+        document.getElementById("direction").textContent = getDirectionFromHeading(heading);
+        document.getElementById("arrow").style.transform = `rotate(${heading}deg)`;
+      }
+    }
+
+    // ==== MOTION FUNCTIONS ====
+    function toggleMotion() {
+      if (!motionActive) {
+        startMotion();
+      } else {
+        stopMotion();
+      }
+    }
+    
+    function startMotion() {
+      if (window.DeviceMotionEvent) {
+        // Para iOS, solicitar permissão
+        if (typeof DeviceMotionEvent.requestPermission === 'function') {
+          DeviceMotionEvent.requestPermission()
+            .then(response => {
+              if (response === 'granted') {
+                window.addEventListener("devicemotion", handleMotion);
+                motionActive = true;
+                document.getElementById('motion-text').textContent = 'Parar Movimento';
+                updateStatus('motion-status', 'active');
+              } else {
+                alert('Permissão para acelerômetro negada');
+                updateStatus('motion-status', 'error');
+              }
+            });
+        } else {
+          window.addEventListener("devicemotion", handleMotion);
+          motionActive = true;
+          document.getElementById('motion-text').textContent = 'Parar Movimento';
+          updateStatus('motion-status', 'active');
+        }
+      } else {
+        alert('Sensor de movimento não suportado');
+        updateStatus('motion-status', 'error');
+      }
+    }
+    
+    function stopMotion() {
+      window.removeEventListener("devicemotion", handleMotion);
+      motionActive = false;
+      document.getElementById('motion-text').textContent = 'Ativar Movimento';
+      document.getElementById("motion").textContent = 'X: --, Y: --, Z: --';
+      updateStatus('motion-status', 'waiting');
+    }
+    
+    function handleMotion(event) {
+      const acc = event.accelerationIncludingGravity || event.acceleration || {};
+      const x = acc.x || 0;
+      const y = acc.y || 0;
+      const z = acc.z || 0;
+      
+      document.getElementById("motion").textContent =
+        `X: ${x.toFixed(1)}, Y: ${y.toFixed(1)}, Z: ${z.toFixed(1)}`;
+      
+      updateMotionBars(x, y, z);
+    }
+    
+    function updateMotionBars(x, y, z) {
+      const maxVal = 20;
+      const xPercent = Math.min(Math.abs(x) / maxVal * 100, 100);
+      const yPercent = Math.min(Math.abs(y) / maxVal * 100, 100);
+      const zPercent = Math.min(Math.abs(z) / maxVal * 100, 100);
+      
+      document.getElementById('x-bar').style.height = `${xPercent}%`;
+      document.getElementById('y-bar').style.height = `${yPercent}%`;
+      document.getElementById('z-bar').style.height = `${zPercent}%`;
+    }
+
+    // ==== MODAL FUNCTIONS ====
+    function openMarkModal() {
+      if (!currentPosition) {
+        alert('Primeiro ative o GPS para obter sua localização');
+        return;
+      }
+      
+      document.getElementById('mark-coords').value = 
+        `${currentPosition.lat.toFixed(6)}, ${currentPosition.lon.toFixed(6)}`;
+      document.getElementById('mark-modal').style.display = 'block';
+      document.getElementById('mark-description').focus();
+    }
+    
+    function closeMarkModal() {
+      document.getElementById('mark-modal').style.display = 'none';
+      document.getElementById('mark-form').reset();
+    }
+    
+    // Fechar modal clicando fora
+    window.onclick = function(event) {
+      const modal = document.getElementById('mark-modal');
+      if (event.target === modal) {
+        closeMarkModal();
+      }
+    }
+
+    // ==== FIREBASE FUNCTIONS ====
+    async function saveMarkToFirebase(description, lat, lon) {
+      if (!window.db) {
+        alert('Firebase não inicializado. Verifique a configuração.');
+        return false;
